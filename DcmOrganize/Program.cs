@@ -20,7 +20,7 @@ namespace DcmOrganize
             [Option('t', "targetDirectory", Default = ".", HelpText = "Organize DICOM files in this directory")]
             public string? TargetDirectory { get; set; }
             
-            [Option('p', "targetFilePattern", Default = "{PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID}.dcm", HelpText = "Organize DICOM files in this directory")]
+            [Option('p', "targetFilePattern", Default = "{PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID}.dcm", HelpText = "Write DICOM files using this pattern. DICOM tags are supported. Fallback for missing DICOM tags are supported. Nested directories will be created on demand.")]
             public string? TargetFilePattern { get; set; }
         }
         // ReSharper restore UnusedAutoPropertyAccessor.Global
@@ -54,7 +54,8 @@ namespace DcmOrganize
                 string? file;
                 while ((file = Console.ReadLine()) != null)
                 {
-                    yield return file;
+                    if(file != null && File.Exists(file))
+                        yield return file;
                 }            
             }
 

@@ -10,7 +10,7 @@ Options
   
   -t, --targetDirectory      Required. (Default: .) Organize DICOM files in this directory
 
-  -p, --targetFilePattern    Required. (Default: {PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID}.dcm) Organize DICOM files in this directory
+  -p, --targetFilePattern    Required. (Default: {PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID}.dcm) Write DICOM files using this pattern. DICOM tags are supported. Fallback for missing DICOM tags are supported. Nested directories will be created on demand.
 
   --help                     Display this help screen.
 
