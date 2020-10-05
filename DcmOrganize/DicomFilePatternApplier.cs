@@ -14,45 +14,52 @@ namespace DcmOrganize
             var openCurlyBraceIndex = file.IndexOf('{');
             var closingCurlyBraceIndex = file.IndexOf('}');
             var directorySeparatorIndex = file.LastIndexOf(Path.DirectorySeparatorChar);
-            
+
             while (openCurlyBraceIndex != -1 && closingCurlyBraceIndex != -1)
             {
-                var dicomTagExpression = file.Substring(openCurlyBraceIndex, closingCurlyBraceIndex - openCurlyBraceIndex).Trim('{', '}');
-                var dicomTagsToTry = new Stack<string>(
-                    dicomTagExpression
+                var expression = file.Substring(openCurlyBraceIndex, closingCurlyBraceIndex - openCurlyBraceIndex).Trim('{', '}');
+                var expressionTokens = new Stack<string>(
+                    expression
                         .Split("??", StringSplitOptions.RemoveEmptyEntries)
                         .Select(d => d.Trim())
                         .Reverse()
                 );
 
-                string? dicomStringValue = null;
+                string? expressionValue = null;
 
-                while (dicomTagsToTry.TryPop(out var nextDicomTagToTry ) && dicomStringValue == null)
+                while (expressionTokens.TryPop(out var nextToken) && expressionValue == null)
                 {
-                    if (!DicomTagParser.TryParse(nextDicomTagToTry, out var dicomTag))
+                    if (string.Equals(nextToken, "Guid"))
                     {
-                        Console.Error.WriteLine($"ERROR: DICOM tag '{nextDicomTagToTry}' could not be parsed");
-                        file = null;
-                        return false;
+                        expressionValue = Guid.NewGuid().ToString();
                     }
+                    else
+                    {
+                        if (!DicomTagParser.TryParse(nextToken, out var dicomTag))
+                        {
+                            Console.Error.WriteLine($"ERROR: DICOM tag '{nextToken}' could not be parsed");
+                            file = null;
+                            return false;
+                        }
 
-                    dicomStringValue = dicomDataset.GetValueOrDefault(dicomTag, 0, (string?) null)?.Replace('^', ' ');
+                        expressionValue = dicomDataset.GetValueOrDefault(dicomTag, 0, (string?) null)?.Replace('^', ' ');
+                    }
                 }
 
-                if (dicomStringValue == null)
+                if (expressionValue == null)
                 {
-                    Console.Error.WriteLine($"ERROR: DICOM tag expression '{dicomTagExpression}' is not present in DICOM dataset");
+                    Console.Error.WriteLine($"ERROR: DICOM tag expression '{expression}' is not present in DICOM dataset");
                     file = null;
                     return false;
                 }
 
                 if (directorySeparatorIndex >= closingCurlyBraceIndex)
-                    dicomStringValue = FolderNameCleaner.Clean(dicomStringValue);
+                    expressionValue = FolderNameCleaner.Clean(expressionValue);
 
                 file = file.Substring(0, openCurlyBraceIndex)
-                       + dicomStringValue
+                       + expressionValue
                        + file.Substring(Math.Min(file.Length - 1, closingCurlyBraceIndex + 1));
-                
+
                 openCurlyBraceIndex = file.IndexOf('{');
                 closingCurlyBraceIndex = file.IndexOf('}');
                 directorySeparatorIndex = file.LastIndexOf(Path.DirectorySeparatorChar);
@@ -61,6 +68,6 @@ namespace DcmOrganize
             file = file.Trim(Path.DirectorySeparatorChar);
 
             return true;
-        }        
+        }
     }
 }

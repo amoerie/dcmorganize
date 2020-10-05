@@ -84,5 +84,25 @@ namespace DcmOrganize.Tests
             success.Should().BeTrue();
             file.Should().Be("1.2.3.dcm");
         }
+        
+        [Fact]
+        public void ShouldSupportGuidsInFilePattern()
+        {
+            // Arrange
+            var dicomDataSet = new DicomDataset
+            {
+                { DicomTag.SOPInstanceUID, "1.2.3" },
+            };
+            var pattern = "{Guid}.dcm";
+
+            // Act
+            var success = DicomFilePatternApplier.TryApply(dicomDataSet, pattern, out var file);
+
+            // Assert
+            success.Should().BeTrue();
+            var guidAsString = file!.Substring(0, file.Length - ".dcm".Length);
+
+            Guid.TryParse(guidAsString, out var _).Should().BeTrue();
+        }
     }
 }

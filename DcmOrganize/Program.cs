@@ -16,26 +16,28 @@ namespace DcmOrganize
         {
             [Value(0, HelpText = "Organize these DICOM files. When missing, this option will be read from the piped input.", Required = false)]
             public IEnumerable<string>? Files { get; set; }
-            
+
             [Option('t', "targetDirectory", Default = ".", HelpText = "Organize DICOM files in this directory")]
             public string? TargetDirectory { get; set; }
-            
-            [Option('p', "targetFilePattern", Default = "{PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID}.dcm", HelpText = "Write DICOM files using this pattern. DICOM tags are supported. Fallback for missing DICOM tags are supported. Nested directories will be created on demand.")]
+
+            [Option('p', "targetFilePattern", Default = "{PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID} - {Guid}.dcm",
+                HelpText =
+                    "Write DICOM files using this pattern. DICOM tags are supported. Fallback for missing DICOM tags are supported. Nested directories will be created on demand.")]
             public string? TargetFilePattern { get; set; }
         }
         // ReSharper restore UnusedAutoPropertyAccessor.Global
         // ReSharper restore MemberCanBePrivate.Global
         // ReSharper restore ClassNeverInstantiated.Global
-        
+
         private static readonly object CreateDirectoryLock = new object();
-        
+
         static void Main(string[] args)
         {
             Parser.Default.ParseArguments<Options>(args)
                 .WithParsed(Organize)
                 .WithNotParsed(Fail);
         }
-        
+
         private static void Fail(IEnumerable<Error> errors)
         {
             Console.Error.WriteLine("Invalid arguments provided");
@@ -54,9 +56,9 @@ namespace DcmOrganize
                 string? file;
                 while ((file = Console.ReadLine()) != null)
                 {
-                    if(file != null && File.Exists(file))
+                    if (file != null && File.Exists(file))
                         yield return file;
-                }            
+                }
             }
 
             var files = options.Files != null && options.Files.Any() ? options.Files : ReadFilesFromConsole();
@@ -113,16 +115,31 @@ namespace DcmOrganize
                     continue;
                 }
 
+                if (targetFile.Exists)
+                {
+                    var counter = 1;
+                    var targetFileName = targetFile.Name;
+                    var targetFileDirectoryName = targetFile.Directory.FullName;
+                    var targetFileExtension = targetFile.Extension;
+                    var targetFileNameWithoutExtension = targetFileName.Substring(0, targetFileName.Length - targetFileExtension.Length);
+
+                    while (targetFile.Exists)
+                    {
+                        targetFileName = $"{targetFileNameWithoutExtension} ({counter++}){targetFile.Extension}";
+
+                        targetFile = new FileInfo(Path.Join(targetFileDirectoryName, targetFileName));
+                    }
+                }
+
                 try
                 {
                     Console.WriteLine($"Moving {file.FullName} --> {targetFile.FullName}");
                     File.Move(file.FullName, targetFile.FullName);
                 }
-                catch (IOException exception)
+                catch (IOException exception1)
                 {
                     Console.Error.WriteLine("Failed to move file");
-                    Console.Error.WriteLine(exception);
-                    continue;
+                    Console.Error.WriteLine(exception1);
                 }
             }
         }
