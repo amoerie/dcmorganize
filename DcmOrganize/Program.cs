@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using CommandLine;
 using Dicom;
+using KeyedSemaphores;
 
 namespace DcmOrganize
 {
@@ -29,13 +32,19 @@ namespace DcmOrganize
         // ReSharper restore MemberCanBePrivate.Global
         // ReSharper restore ClassNeverInstantiated.Global
 
-        private static readonly object CreateDirectoryLock = new object();
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            Parser.Default.ParseArguments<Options>(args)
-                .WithParsed(Organize)
-                .WithNotParsed(Fail);
+            var parserResult = Parser.Default.ParseArguments<Options>(args);
+
+            if (parserResult is Parsed<Options> parsed)
+            {
+                await OrganizeAsync(parsed.Value).ConfigureAwait(false);
+            }
+            else if (parserResult is NotParsed<Options> notParsed)
+            {
+                Fail(notParsed.Errors);
+            }
         }
 
         private static void Fail(IEnumerable<Error> errors)
@@ -47,100 +56,134 @@ namespace DcmOrganize
             }
         }
 
-        private static void Organize(Options options)
+        private static async Task OrganizeAsync(Options options)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
 
-            IEnumerable<string> ReadFilesFromConsole()
+            IEnumerable<FileInfo> ReadFilesFromConsole()
             {
                 string? file;
                 while ((file = Console.ReadLine()) != null)
                 {
                     if (file != null && File.Exists(file))
-                        yield return file;
+                        yield return new FileInfo(file);
                 }
             }
 
-            var files = options.Files != null && options.Files.Any() ? options.Files : ReadFilesFromConsole();
+            var files = options.Files != null && options.Files.Any() 
+                ? options.Files.Select(f => new FileInfo(f)) 
+                : ReadFilesFromConsole();
             var targetDirectory = new DirectoryInfo(options.TargetDirectory!);
             var targetFilePattern = options.TargetFilePattern!;
 
             if (!targetDirectory.Exists)
             {
-                Console.Error.WriteLine($"Target directory does not exist: {targetDirectory.FullName}");
+                await Console.Error.WriteLineAsync($"Target directory does not exist: {targetDirectory.FullName}");
                 return;
             }
 
-            foreach (var file in files.Select(f => new FileInfo(f)))
+            var parallelism = 8;
+            await Task.WhenAll(
+                Partitioner
+                    .Create(files)
+                    .GetPartitions(parallelism)
+                    .AsParallel()
+                    .Select(partition => OrganizeFilesAsync(partition, targetFilePattern, targetDirectory))
+            ).ConfigureAwait(false);
+        }
+
+        private static async Task OrganizeFilesAsync(IEnumerator<FileInfo> files, string targetFilePattern, DirectoryInfo targetDirectory)
+        {
+            using (files)
             {
-                DicomFile dicomFile;
-                try
+                while (files.MoveNext())
                 {
-                    using (var fileStream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096))
-                    {
-                        dicomFile = DicomFile.Open(fileStream, FileReadOption.SkipLargeTags);
-                    }
+                    await OrganizeFileAsync(files.Current, targetFilePattern, targetDirectory).ConfigureAwait(false);
                 }
-                catch
-                {
-                    Console.Error.WriteLine("Not a DICOM file: " + file.FullName);
-                    continue;
-                }
+            }
+        }
 
-                if (!DicomFilePatternApplier.TryApply(dicomFile.Dataset, targetFilePattern, out var fileName))
-                {
-                    Console.Error.WriteLine("Failed to apply DICOM file pattern");
-                    continue;
-                }
+        private static async Task OrganizeFileAsync(FileInfo file, string targetFilePattern, DirectoryInfo targetDirectory)
+        {
+            DicomFile dicomFile;
+            try
+            {
+                await using var fileStream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096);
 
-                var targetFile = new FileInfo(Path.Join(targetDirectory.FullName, fileName));
+                dicomFile = await DicomFile.OpenAsync(fileStream, FileReadOption.SkipLargeTags);
+            }
+            catch
+            {
+                await Console.Error.WriteLineAsync("Not a DICOM file: " + file.FullName);
+                return;
+            }
 
-                if (!targetFile.Directory!.Exists)
+            if (!DicomFilePatternApplier.TryApply(dicomFile.Dataset, targetFilePattern, out var fileName))
+            {
+                await Console.Error.WriteLineAsync("Failed to apply DICOM file pattern: " + file.FullName);
+                return;
+            }
+
+            var targetFile = new FileInfo(Path.Join(targetDirectory.FullName, fileName));
+
+            if (!targetFile.Directory!.Exists)
+            {
+                var highestDirectoryName = HighestDirectoryNameDeterminer.Determine(fileName!);
+                using (await KeyedSemaphore.LockAsync(highestDirectoryName))
                 {
                     try
                     {
-                        targetFile.Directory!.Create();
+                        if (!targetFile.Directory.Exists)
+                        {
+                            targetFile.Directory!.Create();
+                        }
                     }
                     catch (IOException exception)
                     {
-                        Console.Error.WriteLine($"Failed to create directory {targetFile.Directory.FullName}");
-                        Console.Error.WriteLine(exception);
+                        await Console.Error.WriteLineAsync($"Failed to create directory {targetFile.Directory.FullName}");
+                        await Console.Error.WriteLineAsync(exception.ToString());
                         return;
                     }
                 }
+            }
 
-                if (file.FullName == targetFile.FullName)
+            if (file.FullName == targetFile.FullName)
+            {
+                Console.WriteLine($"OK:    {file.FullName} === {targetFile.FullName}");
+                return;
+            }
+
+            if (targetFile.Exists)
+            {
+                var counter = 1;
+                var targetFileName = targetFile.Name;
+                var targetFileDirectoryName = targetFile.Directory.FullName;
+                var targetFileExtension = targetFile.Extension;
+                var targetFileNameWithoutExtension = targetFileName.Substring(0, targetFileName.Length - targetFileExtension.Length);
+
+                while (targetFile.Exists)
                 {
-                    Console.WriteLine($"OK:    {file.FullName} === {targetFile.FullName}");
-                    continue;
-                }
+                    targetFileName = $"{targetFileNameWithoutExtension} ({counter++}){targetFile.Extension}";
 
-                if (targetFile.Exists)
-                {
-                    var counter = 1;
-                    var targetFileName = targetFile.Name;
-                    var targetFileDirectoryName = targetFile.Directory.FullName;
-                    var targetFileExtension = targetFile.Extension;
-                    var targetFileNameWithoutExtension = targetFileName.Substring(0, targetFileName.Length - targetFileExtension.Length);
-
-                    while (targetFile.Exists)
+                    targetFile = new FileInfo(Path.Join(targetFileDirectoryName, targetFileName));
+                    
+                    if (file.FullName == targetFile.FullName)
                     {
-                        targetFileName = $"{targetFileNameWithoutExtension} ({counter++}){targetFile.Extension}";
-
-                        targetFile = new FileInfo(Path.Join(targetFileDirectoryName, targetFileName));
+                        Console.WriteLine($"OK:    {file.FullName} === {targetFile.FullName}");
+                        return;
                     }
                 }
+            }
 
-                try
-                {
-                    Console.WriteLine($"Moving {file.FullName} --> {targetFile.FullName}");
-                    File.Move(file.FullName, targetFile.FullName);
-                }
-                catch (IOException exception1)
-                {
-                    Console.Error.WriteLine("Failed to move file");
-                    Console.Error.WriteLine(exception1);
-                }
+            try
+            {
+                Console.WriteLine($"Moving {file.FullName} --> {targetFile.FullName}");
+                File.Move(file.FullName, targetFile.FullName);
+            }
+            catch (IOException exception)
+            {
+                await Console.Error.WriteLineAsync("Failed to move file");
+                await Console.Error.WriteLineAsync(exception.ToString());
             }
         }
     }
