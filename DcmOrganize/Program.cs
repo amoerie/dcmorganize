@@ -23,10 +23,13 @@ namespace DcmOrganize
             [Option('t', "targetDirectory", Default = ".", HelpText = "Organize DICOM files in this directory")]
             public string? TargetDirectory { get; set; }
 
-            [Option('p', "targetFilePattern", Default = "{PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID} - {Guid}.dcm",
+            [Option('f', "targetFilePattern", Default = "{PatientName}/{AccessionNumber}/{SeriesNumber}/{InstanceNumber ?? SOPInstanceUID} - {Guid}.dcm",
                 HelpText =
                     "Write DICOM files using this pattern. DICOM tags are supported. Fallback for missing DICOM tags are supported. Nested directories will be created on demand.")]
             public string? TargetFilePattern { get; set; }
+            
+            [Option('p', "parallelism", Default = 8, HelpText = "Process this many files in parallel")]
+            public int Parallelism { get; set; }
         }
         // ReSharper restore UnusedAutoPropertyAccessor.Global
         // ReSharper restore MemberCanBePrivate.Global
@@ -75,6 +78,7 @@ namespace DcmOrganize
                 : ReadFilesFromConsole();
             var targetDirectory = new DirectoryInfo(options.TargetDirectory!);
             var targetFilePattern = options.TargetFilePattern!;
+            var parallelism = options.Parallelism;
 
             if (!targetDirectory.Exists)
             {
@@ -82,7 +86,6 @@ namespace DcmOrganize
                 return;
             }
 
-            var parallelism = 8;
             await Task.WhenAll(
                 Partitioner
                     .Create(files)
