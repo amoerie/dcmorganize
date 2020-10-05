@@ -1,4 +1,4 @@
-DICOM ORGANIZE
+📂 DICOM ORGANIZE
 --------------
 
 Organizes DICOM files on your disk.
