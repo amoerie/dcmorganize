@@ -27,10 +27,20 @@ namespace DcmOrganize
                 HelpText =
                     "Write DICOM files using this pattern. DICOM tags are supported. Fallback for missing DICOM tags are supported. Nested directories will be created on demand.")]
             public string? TargetFilePattern { get; set; }
-            
+
+            [Option('a', "targetFileAction", Default = Program.TargetFileAction.Move, HelpText = "Action to execute for each file", Required = false)]
+            public TargetFileAction? TargetFileAction { get; set; }
+
             [Option('p', "parallelism", Default = 8, HelpText = "Process this many files in parallel")]
             public int Parallelism { get; set; }
         }
+
+        public enum TargetFileAction
+        {
+            Move,
+            Copy
+        }
+
         // ReSharper restore UnusedAutoPropertyAccessor.Global
         // ReSharper restore MemberCanBePrivate.Global
         // ReSharper restore ClassNeverInstantiated.Global
@@ -38,24 +48,18 @@ namespace DcmOrganize
 
         static async Task Main(string[] args)
         {
-            var parserResult = Parser.Default.ParseArguments<Options>(args);
+            var parser = new Parser(with =>
+            {
+                with.CaseInsensitiveEnumValues = true;
+                with.AutoHelp = true;
+                with.AutoVersion = true;
+                with.HelpWriter = Console.Out;
+            });
+            var parserResult = parser.ParseArguments<Options>(args);
 
             if (parserResult is Parsed<Options> parsed)
             {
                 await OrganizeAsync(parsed.Value).ConfigureAwait(false);
-            }
-            else if (parserResult is NotParsed<Options> notParsed)
-            {
-                Fail(notParsed.Errors);
-            }
-        }
-
-        private static void Fail(IEnumerable<Error> errors)
-        {
-            Console.Error.WriteLine("Invalid arguments provided");
-            foreach (var error in errors.Where(e => e.Tag != ErrorType.HelpRequestedError))
-            {
-                Console.Error.WriteLine(error.ToString());
             }
         }
 
@@ -73,11 +77,12 @@ namespace DcmOrganize
                 }
             }
 
-            var files = options.Files != null && options.Files.Any() 
-                ? options.Files.Select(f => new FileInfo(f)) 
+            var files = options.Files != null && options.Files.Any()
+                ? options.Files.Select(f => new FileInfo(f))
                 : ReadFilesFromConsole();
             var targetDirectory = new DirectoryInfo(options.TargetDirectory!);
             var targetFilePattern = options.TargetFilePattern!;
+            var targetFileAction = options.TargetFileAction ?? TargetFileAction.Move;
             var parallelism = options.Parallelism;
 
             if (!targetDirectory.Exists)
@@ -91,22 +96,22 @@ namespace DcmOrganize
                     .Create(files)
                     .GetPartitions(parallelism)
                     .AsParallel()
-                    .Select(partition => OrganizeFilesAsync(partition, targetFilePattern, targetDirectory))
+                    .Select(partition => OrganizeFilesAsync(partition, targetFilePattern, targetDirectory, targetFileAction))
             ).ConfigureAwait(false);
         }
 
-        private static async Task OrganizeFilesAsync(IEnumerator<FileInfo> files, string targetFilePattern, DirectoryInfo targetDirectory)
+        private static async Task OrganizeFilesAsync(IEnumerator<FileInfo> files, string targetFilePattern, DirectoryInfo targetDirectory, TargetFileAction targetFileAction)
         {
             using (files)
             {
                 while (files.MoveNext())
                 {
-                    await OrganizeFileAsync(files.Current, targetFilePattern, targetDirectory).ConfigureAwait(false);
+                    await OrganizeFileAsync(files.Current, targetFilePattern, targetDirectory, targetFileAction).ConfigureAwait(false);
                 }
             }
         }
 
-        private static async Task OrganizeFileAsync(FileInfo file, string targetFilePattern, DirectoryInfo targetDirectory)
+        private static async Task OrganizeFileAsync(FileInfo file, string targetFilePattern, DirectoryInfo targetDirectory, TargetFileAction targetFileAction)
         {
             DicomFile dicomFile;
             try
@@ -169,7 +174,7 @@ namespace DcmOrganize
                     targetFileName = $"{targetFileNameWithoutExtension} ({counter++}){targetFile.Extension}";
 
                     targetFile = new FileInfo(Path.Join(targetFileDirectoryName, targetFileName));
-                    
+
                     if (file.FullName == targetFile.FullName)
                     {
                         Console.WriteLine($"OK:    {file.FullName} === {targetFile.FullName}");
@@ -178,16 +183,45 @@ namespace DcmOrganize
                 }
             }
 
-            try
+            int attempt = 1;
+            bool success = false;
+            do
             {
-                Console.WriteLine($"Moving {file.FullName} --> {targetFile.FullName}");
-                File.Move(file.FullName, targetFile.FullName);
-            }
-            catch (IOException exception)
-            {
-                await Console.Error.WriteLineAsync("Failed to move file");
-                await Console.Error.WriteLineAsync(exception.ToString());
-            }
+                try
+                {
+                    switch (targetFileAction)
+                    {
+                        case TargetFileAction.Move:
+                        {
+                            Console.WriteLine(attempt > 1 
+                                ? $"Attempt {attempt} / 3: Moving {file.FullName} --> {targetFile.FullName}"
+                                : $"Moving {file.FullName} --> {targetFile.FullName}"
+                            );
+                            File.Move(file.FullName, targetFile.FullName);
+                            break;
+                        }
+                        case TargetFileAction.Copy:
+                        {
+                            Console.WriteLine(attempt > 1 
+                                ? $"Attempt {attempt} / 3: Copying {file.FullName} --> {targetFile.FullName}"
+                                : $"Copying {file.FullName} --> {targetFile.FullName}"
+                            );
+                            File.Copy(file.FullName, targetFile.FullName);
+                            break;
+                        }
+                    }
+
+                    success = true;
+                }
+                catch (IOException exception)
+                {
+                    await Console.Error.WriteLineAsync("Failed to process file");
+                    await Console.Error.WriteLineAsync(exception.ToString());
+                    
+                    attempt++;
+                }
+            } while (!success && attempt < 3);
+
         }
     }
 }
