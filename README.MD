@@ -4,7 +4,27 @@
 
 Organizes DICOM files on your disk.
 
-Options 
+Installation
+------------
+
+```powershell
+    dotnet tool install dcmorganize --global
+```
+
+Usage
+-----
+
+```powershell
+    dcmorganize file1.dcm file2.dcm file3.dcm
+```
+
+or using piped input
+
+```powershell
+    dcmfind | dcmorganize
+```
+
+Parameters 
 
 ```
   files pos. 0               Required. (Default: .) Organize these DICOM files. When missing, this option will be read from the piped input.
