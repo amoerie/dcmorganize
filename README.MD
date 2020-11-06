@@ -24,6 +24,8 @@ or using piped input
     dcmfind | dcmorganize
 ```
 
+See https://github.com/amoerie/dcmfind
+
 Parameters 
 
 ```
