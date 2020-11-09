@@ -1,12 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.Linq;
 using System.Reflection;
 using Dicom;
 
 namespace DcmOrganize
 {
-    public static class DicomTagParser
+    public interface IDicomTagParser
+    {
+        DicomTag Parse(string dicomTagAsString);
+    }
+
+    public class DicomTagParser : IDicomTagParser
     {
         private static readonly Lazy<IEnumerable<FieldInfo>> DicomTagFields = new Lazy<IEnumerable<FieldInfo>>(
             () => typeof(DicomTag)
@@ -15,33 +21,29 @@ namespace DcmOrganize
                 .ToList()
         );
 
-        public static bool TryParse(string dicomTagAsString, out DicomTag? dicomTag)
+        public DicomTag Parse(string dicomTagAsString)
         {
             try
             {
+                // hex syntax 
                 if (dicomTagAsString[0] == '(' || char.IsDigit(dicomTagAsString[0]))
                 {
-                    dicomTag = DicomTag.Parse(dicomTagAsString);
-                    return true;
+                    return DicomTag.Parse(dicomTagAsString);
                 }
 
                 var field = DicomTagFields.Value
                     .FirstOrDefault(f => string.Equals(f.Name, dicomTagAsString));
+
                 if (field != null)
                 {
-                    dicomTag = (DicomTag?) field.GetValue(null);
-                    return true;
+                    return (DicomTag?) field.GetValue(null)! ?? throw new DicomTagParserException($"Invalid DICOM tag '{dicomTagAsString}'");
                 }
 
-                dicomTag = DicomTag.Parse(dicomTagAsString);
-                return true;
+                return DicomTag.Parse(dicomTagAsString);
             }
             catch (DicomDataException e)
             {
-                Console.Error.WriteLine($"Invalid DICOM tag '{dicomTagAsString}': " + e.Message);
-                Console.Error.WriteLine(e);
-                dicomTag = null;
-                return false;
+                throw new DicomTagParserException($"Invalid DICOM tag '{dicomTagAsString}': " + e.Message, e);
             }
         }
     }

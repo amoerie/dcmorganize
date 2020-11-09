@@ -8,6 +8,14 @@ namespace DcmOrganize.Tests
 {
     public class TestsForDicomFilePatternApplier
     {
+        private readonly PatternApplier _patternApplier;
+
+        public TestsForDicomFilePatternApplier()
+        {
+            var dicomTagParser = new DicomTagParser();
+            _patternApplier = new PatternApplier(dicomTagParser);
+        }
+        
         [Fact]
         public void ShouldApplySimplePattern()
         {
@@ -20,10 +28,9 @@ namespace DcmOrganize.Tests
             var pattern = "{AccessionNumber}/{InstanceNumber}.dcm";
 
             // Act
-            var success = DicomFilePatternApplier.TryApply(dicomDataSet, pattern, out var file);
+            var file = _patternApplier.Apply(dicomDataSet, pattern);
 
             // Assert
-            success.Should().BeTrue();
             file.Should().Be(Path.Join("ABC123", "7.dcm"));
         }
         
@@ -41,10 +48,9 @@ namespace DcmOrganize.Tests
             var pattern = "Patient {PatientName}/Study {AccessionNumber}/Series {SeriesNumber}/Image {InstanceNumber}.dcm";
 
             // Act
-            var success = DicomFilePatternApplier.TryApply(dicomDataSet, pattern, out var file);
+            var file = _patternApplier.Apply(dicomDataSet, pattern);
 
             // Assert
-            success.Should().BeTrue();
             file.Should().Be(Path.Join("Patient Samson Gert", "Study ABC123", "Series 20", "Image 7.dcm"));
         }
         
@@ -60,10 +66,9 @@ namespace DcmOrganize.Tests
             var pattern = "{InstanceNumber ?? SOPInstanceUID}.dcm";
 
             // Act
-            var success = DicomFilePatternApplier.TryApply(dicomDataSet, pattern, out var file);
+            var file = _patternApplier.Apply(dicomDataSet, pattern);
 
             // Assert
-            success.Should().BeTrue();
             file.Should().Be("10.dcm");
         }
         
@@ -78,10 +83,9 @@ namespace DcmOrganize.Tests
             var pattern = "{InstanceNumber ?? SOPInstanceUID}.dcm";
 
             // Act
-            var success = DicomFilePatternApplier.TryApply(dicomDataSet, pattern, out var file);
+            var file = _patternApplier.Apply(dicomDataSet, pattern);
 
             // Assert
-            success.Should().BeTrue();
             file.Should().Be("1.2.3.dcm");
         }
         
@@ -96,13 +100,26 @@ namespace DcmOrganize.Tests
             var pattern = "{Guid}.dcm";
 
             // Act
-            var success = DicomFilePatternApplier.TryApply(dicomDataSet, pattern, out var file);
+            var file = _patternApplier.Apply(dicomDataSet, pattern);
 
             // Assert
-            success.Should().BeTrue();
             var guidAsString = file!.Substring(0, file.Length - ".dcm".Length);
 
             Guid.TryParse(guidAsString, out var _).Should().BeTrue();
+        }
+        
+        [Fact]
+        public void ShouldThrowExceptionWhenAnErrorOccurs()
+        {
+            // Arrange
+            var dicomDataSet = new DicomDataset
+            {
+                { DicomTag.SOPInstanceUID, "1.2.3" },
+            };
+            var pattern = "{Banana}.dcm";
+
+            // Act
+            _patternApplier.Invoking(p => p.Apply(dicomDataSet, pattern)).Should().Throw<PatternException>();
         }
     }
 }

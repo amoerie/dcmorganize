@@ -6,11 +6,23 @@ using Dicom;
 
 namespace DcmOrganize
 {
-    public static class DicomFilePatternApplier
+    internal interface IPatternApplier
     {
-        public static bool TryApply(DicomDataset dicomDataset, string filePattern, out string? file)
+        string Apply(DicomDataset dicomDataset, string filePattern);
+    }
+
+    public class PatternApplier : IPatternApplier
+    {
+        private readonly IDicomTagParser _dicomTagParser;
+
+        public PatternApplier(IDicomTagParser dicomTagParser)
         {
-            file = filePattern.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            _dicomTagParser = dicomTagParser ?? throw new ArgumentNullException(nameof(dicomTagParser));
+        }
+        
+        public string Apply(DicomDataset dicomDataset, string filePattern)
+        {
+            var file = filePattern.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
             var openCurlyBraceIndex = file.IndexOf('{');
             var closingCurlyBraceIndex = file.IndexOf('}');
             var directorySeparatorIndex = file.LastIndexOf(Path.DirectorySeparatorChar);
@@ -35,11 +47,14 @@ namespace DcmOrganize
                     }
                     else
                     {
-                        if (!DicomTagParser.TryParse(nextToken, out var dicomTag))
+                        DicomTag dicomTag;
+                        try
                         {
-                            Console.Error.WriteLine($"ERROR: DICOM tag '{nextToken}' could not be parsed");
-                            file = null;
-                            return false;
+                            dicomTag = _dicomTagParser.Parse(nextToken);
+                        }
+                        catch (DicomTagParserException e)
+                        {
+                            throw new PatternException("Failed to parse DICOM tag while applying pattern", e);
                         }
 
                         expressionValue = dicomDataset.GetValueOrDefault(dicomTag, 0, (string?) null)?.Replace('^', ' ');
@@ -48,9 +63,7 @@ namespace DcmOrganize
 
                 if (expressionValue == null)
                 {
-                    Console.Error.WriteLine($"ERROR: DICOM tag expression '{expression}' is not present in DICOM dataset");
-                    file = null;
-                    return false;
+                    throw new PatternException($"DICOM tag expression '{expression}' is not present in DICOM dataset");
                 }
 
                 if (directorySeparatorIndex >= closingCurlyBraceIndex)
@@ -65,9 +78,7 @@ namespace DcmOrganize
                 directorySeparatorIndex = file.LastIndexOf(Path.DirectorySeparatorChar);
             }
 
-            file = file.Trim(Path.DirectorySeparatorChar);
-
-            return true;
+            return file.Trim(Path.DirectorySeparatorChar);
         }
     }
 }
