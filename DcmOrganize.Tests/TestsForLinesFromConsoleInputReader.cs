@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
 
@@ -23,20 +23,20 @@ namespace DcmOrganize.Tests
         }
 
         [Fact]
-        public void ShouldReadEmptyString()
+        public async Task ShouldReadEmptyString()
         {
-            var lines = _linesFromConsoleInputReader.Read(CancellationToken.None).ToList();
+            var lines = await _linesFromConsoleInputReader.Read(CancellationToken.None).ToListAsync();
 
             lines.Should().BeEmpty();
         }
 
         [Fact]
-        public void ShouldReadSingleLine()
+        public async Task ShouldReadSingleLine()
         {
             _consoleInputWriter.Write("Hello world");
             _consoleInputStream.Seek(0, SeekOrigin.Begin);
 
-            var lines = _linesFromConsoleInputReader.Read(CancellationToken.None).ToList();
+            var lines = await _linesFromConsoleInputReader.Read(CancellationToken.None).ToListAsync();
 
             lines.Should().BeEquivalentTo(new []
             {
@@ -48,12 +48,12 @@ namespace DcmOrganize.Tests
         [InlineData("Hello\rWorld")]
         [InlineData("Hello\nWorld")]
         [InlineData("Hello\r\nWorld")]
-        public void ShouldReadMultipleLines(string input)
+        public async Task ShouldReadMultipleLines(string input)
         {
             _consoleInputWriter.Write(input);
             _consoleInputStream.Seek(0, SeekOrigin.Begin);
 
-            var lines = _linesFromConsoleInputReader.Read(CancellationToken.None).ToList();
+            var lines = await _linesFromConsoleInputReader.Read(CancellationToken.None).ToListAsync();
 
             lines.Should().BeEquivalentTo(new []
             {

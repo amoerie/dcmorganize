@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Dicom;
 using KeyedSemaphores;
@@ -35,41 +34,65 @@ namespace DcmOrganize
             _ioPolicy = Policy.Handle<IOException>().Retry(3);
         }
 
-        public async Task OrganizeAsync(DicomOrganizerOptions dicomOrganizerOptions, CancellationToken cancellationToken)
+        public async Task OrganizeAsync(DicomOrganizerOptions options, CancellationToken cancellationToken)
         {
-            var files = dicomOrganizerOptions.Files ?? _filesFromConsoleInputReader.Read(cancellationToken);
-            var directory = dicomOrganizerOptions.Directory;
-            var pattern = dicomOrganizerOptions.Pattern;
-            var action = dicomOrganizerOptions.Action;
-            var parallelism = dicomOrganizerOptions.Parallelism;
+            var parallelism = options.Parallelism;
             
-            if (!directory.Exists)
+            if (!options.Directory.Exists)
             {
-                throw new DicomOrganizeException($"Target directory does not exist: {directory.FullName}");
+                throw new DicomOrganizeException($"Target directory does not exist: {options.Directory.FullName}");
             }
 
-            await Task.WhenAll(
-                Partitioner
-                    .Create(files)
-                    .GetPartitions(parallelism)
-                    .AsParallel()
-                    .Select(partition => OrganizeFilesAsync(partition, pattern, directory, action))
-            ).ConfigureAwait(false);
+            var filesChannel = Channel.CreateUnbounded<FileInfo>(new UnboundedChannelOptions
+            {
+                SingleWriter = true,
+                SingleReader = false
+            });
+            var tasks = new List<Task>
+            {
+                Task.Run(() => ProduceAsync(filesChannel.Writer, options, cancellationToken), cancellationToken)
+            };
+            for (var i = 0; i < parallelism; i++)
+            {
+                tasks.Add(
+                    Task.Run(() => ConsumeAsync(filesChannel.Reader, options, cancellationToken), cancellationToken)
+                );
+            }
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+
+        private async Task ProduceAsync(ChannelWriter<FileInfo> filesChannelWriter, DicomOrganizerOptions dicomOrganizerOptions, CancellationToken cancellationToken)
+        {
+            var files = dicomOrganizerOptions.Files?.AsAsyncEnumerable() ?? _filesFromConsoleInputReader.Read(cancellationToken);
+
+            await foreach (var file in files.WithCancellation(cancellationToken))
+            {
+                await filesChannelWriter.WriteAsync(file, cancellationToken).ConfigureAwait(false);
+            }
         }
         
-        private async Task OrganizeFilesAsync(IEnumerator<FileInfo> files, string pattern, DirectoryInfo directory, Action action)
+        private async Task ConsumeAsync(ChannelReader<FileInfo> filesChannelReader, DicomOrganizerOptions options, CancellationToken cancellationToken)
         {
-            using (files)
+            if (filesChannelReader == null) throw new ArgumentNullException(nameof(filesChannelReader));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            
+            while (await filesChannelReader.WaitToReadAsync(cancellationToken))
             {
-                while (files.MoveNext())
+                while (filesChannelReader.TryRead(out var file))
                 {
-                    await OrganizeFileAsync(files.Current, pattern, directory, action).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    
+                    await OrganizeFileAsync(file, options, cancellationToken);
                 }
             }
         }
 
-        private async Task OrganizeFileAsync(FileInfo file, string pattern, DirectoryInfo directory, Action action)
+        private async Task OrganizeFileAsync(FileInfo file, DicomOrganizerOptions options, CancellationToken cancellationToken)
         {
+            var directory = options.Directory;
+            var pattern = options.Pattern;
+            var action = options.Action;
+            
             DicomFile dicomFile;
             try
             {
