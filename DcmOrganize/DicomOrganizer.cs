@@ -120,7 +120,7 @@ namespace DcmOrganize
             if (!targetFile.Directory!.Exists)
             {
                 var highestDirectoryName = HighestDirectoryNameDeterminer.Determine(fileName!);
-                using (await KeyedSemaphore.LockAsync(highestDirectoryName))
+                using (await KeyedSemaphore.LockAsync(highestDirectoryName, cancellationToken))
                 {
                     try
                     {
@@ -140,7 +140,7 @@ namespace DcmOrganize
 
             if (file.FullName == targetFile.FullName)
             {
-                _logger.WriteLine($"OK:    {file.FullName} === {targetFile.FullName}");
+                _logger.WriteLine(targetFile.FullName);
                 return;
             }
 
@@ -160,7 +160,7 @@ namespace DcmOrganize
 
                     if (file.FullName == targetFile.FullName)
                     {
-                        _logger.WriteLine($"OK:    {file.FullName} === {targetFile.FullName}");
+                        _logger.WriteLine(targetFile.FullName);
                         return;
                     }
                 }
@@ -173,11 +173,13 @@ namespace DcmOrganize
                     case Action.Move:
                     {
                         _ioPolicy.Execute(() => File.Move(file.FullName, targetFile.FullName));
+                        _logger.WriteLine(targetFile.FullName);
                         break;
                     }
                     case Action.Copy:
                     {
                         _ioPolicy.Execute(() => File.Copy(file.FullName, targetFile.FullName));
+                        _logger.WriteLine(targetFile.FullName);
                         break;
                     }
                 }

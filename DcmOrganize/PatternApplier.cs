@@ -14,10 +14,12 @@ namespace DcmOrganize
     public class PatternApplier : IPatternApplier
     {
         private readonly IDicomTagParser _dicomTagParser;
+        private readonly IFolderNameCleaner _folderNameCleaner;
 
-        public PatternApplier(IDicomTagParser dicomTagParser)
+        public PatternApplier(IDicomTagParser dicomTagParser, IFolderNameCleaner folderNameCleaner)
         {
             _dicomTagParser = dicomTagParser ?? throw new ArgumentNullException(nameof(dicomTagParser));
+            _folderNameCleaner = folderNameCleaner ?? throw new ArgumentNullException(nameof(folderNameCleaner));
         }
         
         public string Apply(DicomDataset dicomDataset, string filePattern)
@@ -67,7 +69,7 @@ namespace DcmOrganize
                 }
 
                 if (directorySeparatorIndex >= closingCurlyBraceIndex)
-                    expressionValue = FolderNameCleaner.Clean(expressionValue);
+                    expressionValue = _folderNameCleaner.Clean(expressionValue);
 
                 file = file.Substring(0, openCurlyBraceIndex)
                        + expressionValue

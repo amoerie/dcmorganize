@@ -13,7 +13,8 @@ namespace DcmOrganize.Tests
         public TestsForDicomFilePatternApplier()
         {
             var dicomTagParser = new DicomTagParser();
-            _patternApplier = new PatternApplier(dicomTagParser);
+            var folderNameCleaner = new FolderNameCleaner();
+            _patternApplier = new PatternApplier(dicomTagParser, folderNameCleaner);
         }
         
         [Fact]

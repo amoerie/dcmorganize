@@ -22,7 +22,8 @@ namespace DcmOrganize
         public Task ExecuteAsync(IConsole console, DicomOrganizerOptions dicomOrganizerOptions, CancellationToken cancellationToken)
         {
             var dicomTagParser = new DicomTagParser();
-            var patternApplier = new PatternApplier(dicomTagParser);
+            var folderNameCleaner = new FolderNameCleaner();
+            var patternApplier = new PatternApplier(dicomTagParser, folderNameCleaner);
             var errorHandler = dicomOrganizerOptions.ErrorMode == ErrorMode.Continue
                 ? (IErrorHandler) new ContinueErrorHandler(console)
                 : new StopErrorHandler(); 

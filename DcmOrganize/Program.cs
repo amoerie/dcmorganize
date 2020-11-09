@@ -1,5 +1,8 @@
 ﻿using System;
-using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Invocation;
+using System.CommandLine.Parsing;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 namespace DcmOrganize
@@ -12,7 +15,19 @@ namespace DcmOrganize
             var rootCommandHandler = new RootCommandHandler(filesFromConsoleInputReader);
             var rootCommandFactory = new RootCommandFactory(rootCommandHandler);
             var rootCommand = rootCommandFactory.Create();
-            return rootCommand.InvokeAsync(args);
+            var parser = new CommandLineBuilder(rootCommand)
+                .UseDefaults()
+                .UseExceptionHandler(ExceptionHandler)
+                .Build();
+            return parser.InvokeAsync(args);
+        }
+
+        static void ExceptionHandler(Exception e, InvocationContext context)
+        {
+            if (e is OperationCanceledException)
+                return;
+
+            ExceptionDispatchInfo.Capture(e).Throw();
         }
     }
 }
