@@ -47,8 +47,12 @@ namespace DcmOrganize
                     {
                         expressionValue = Guid.NewGuid().ToString();
                     }
-                    else
+                    else if (nextToken.StartsWith("'") && nextToken.EndsWith("'"))
                     {
+                        // Constant
+                        expressionValue = nextToken.Trim('\''); 
+                    }
+                    else {
                         DicomTag dicomTag;
                         try
                         {

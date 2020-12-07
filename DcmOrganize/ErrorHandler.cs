@@ -11,8 +11,16 @@ namespace DcmOrganize
 
     internal class StopErrorHandler : IErrorHandler
     {
+        private readonly IConsole _console;
+
+        public StopErrorHandler(IConsole console)
+        {
+            _console = console ?? throw new ArgumentNullException(nameof(console));
+        }
+        
         public void Handle(DicomOrganizeException error)
         {
+            _console.Error.WriteLine(error.ToString());
             throw error;
         }
     }

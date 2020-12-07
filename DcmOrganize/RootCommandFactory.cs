@@ -86,7 +86,8 @@ namespace DcmOrganize
                 directoryOption,
                 patternOption,
                 actionOption,
-                parallelismOption
+                parallelismOption,
+                errorModeOption
             };
 
             organizeCommand.Handler =

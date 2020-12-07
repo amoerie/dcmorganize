@@ -122,5 +122,19 @@ namespace DcmOrganize.Tests
             // Act
             _patternApplier.Invoking(p => p.Apply(dicomDataSet, pattern)).Should().Throw<PatternException>();
         }
+        
+        [Fact]
+        public void ShouldSupportConstantsAsFallback()
+        {
+            // Arrange
+            var dicomDataSet = new DicomDataset
+            {
+                { DicomTag.SOPInstanceUID, "1.2.3" },
+            };
+            var pattern = "{InstanceNumber ?? 'Constant'}.dcm";
+
+            // Act
+            _patternApplier.Apply(dicomDataSet, pattern).Should().Be("Constant.dcm");
+        }
     }
 }
