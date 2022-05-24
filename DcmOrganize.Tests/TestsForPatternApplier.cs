@@ -6,11 +6,11 @@ using Xunit;
 
 namespace DcmOrganize.Tests
 {
-    public class TestsForDicomFilePatternApplier
+    public class TestsForPatternApplier
     {
         private readonly PatternApplier _patternApplier;
 
-        public TestsForDicomFilePatternApplier()
+        public TestsForPatternApplier()
         {
             var dicomTagParser = new DicomTagParser();
             var folderNameCleaner = new FolderNameCleaner();
