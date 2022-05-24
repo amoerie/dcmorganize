@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Dicom;
+using FellowOakDicom;
 using FluentAssertions;
 using Xunit;
 

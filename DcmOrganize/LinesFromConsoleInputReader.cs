@@ -23,9 +23,9 @@ namespace DcmOrganize
 
         public async IAsyncEnumerable<string> Read([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var cancellationTcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            await using var registration = cancellationToken.Register(() => cancellationTcs.SetCanceled());
-            Task<string?> cancellationTask = cancellationTcs.Task;
+            var cancellationCts = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            await using var registration = cancellationToken.Register(() => cancellationCts.SetCanceled());
+            Task<string?> cancellationTask = cancellationCts.Task;
             
             while (!cancellationToken.IsCancellationRequested)
             {

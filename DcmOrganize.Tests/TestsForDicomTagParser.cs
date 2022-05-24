@@ -1,5 +1,5 @@
 using System;
-using Dicom;
+using FellowOakDicom;
 using FluentAssertions;
 using Xunit;
 

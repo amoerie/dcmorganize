@@ -4,7 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Dicom;
+using FellowOakDicom;
 using KeyedSemaphores;
 using Polly;
 using Polly.Retry;
