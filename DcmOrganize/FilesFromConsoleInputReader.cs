@@ -4,29 +4,28 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace DcmOrganize
+namespace DcmOrganize;
+
+internal interface IFilesFromConsoleInputReader
 {
-    internal interface IFilesFromConsoleInputReader
+    IAsyncEnumerable<FileInfo> Read(CancellationToken cancellationToken);
+}
+
+internal class FilesFromConsoleInputReader : IFilesFromConsoleInputReader
+{
+    private readonly ILinesFromConsoleInputReader _linesFromConsoleInputReader;
+
+    public FilesFromConsoleInputReader(ILinesFromConsoleInputReader linesFromConsoleInputReader)
     {
-        IAsyncEnumerable<FileInfo> Read(CancellationToken cancellationToken);
+        _linesFromConsoleInputReader = linesFromConsoleInputReader ?? throw new ArgumentNullException(nameof(linesFromConsoleInputReader));
     }
 
-    internal class FilesFromConsoleInputReader : IFilesFromConsoleInputReader
+    public async IAsyncEnumerable<FileInfo> Read([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        private readonly ILinesFromConsoleInputReader _linesFromConsoleInputReader;
-
-        public FilesFromConsoleInputReader(ILinesFromConsoleInputReader linesFromConsoleInputReader)
+        await foreach (var line in _linesFromConsoleInputReader.Read(cancellationToken))
         {
-            _linesFromConsoleInputReader = linesFromConsoleInputReader ?? throw new ArgumentNullException(nameof(linesFromConsoleInputReader));
-        }
-
-        public async IAsyncEnumerable<FileInfo> Read([EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            await foreach (var line in _linesFromConsoleInputReader.Read(cancellationToken))
-            {
-                if (File.Exists(line))
-                    yield return new FileInfo(line);
-            }
+            if (File.Exists(line))
+                yield return new FileInfo(line);
         }
     }
 }

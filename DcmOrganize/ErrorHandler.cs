@@ -2,41 +2,40 @@
 using System.CommandLine;
 using System.CommandLine.IO;
 
-namespace DcmOrganize
+namespace DcmOrganize;
+
+internal interface IErrorHandler
 {
-    internal interface IErrorHandler
+    void Handle(DicomOrganizeException error);
+}
+
+internal class StopErrorHandler : IErrorHandler
+{
+    private readonly IConsole _console;
+
+    public StopErrorHandler(IConsole console)
     {
-        void Handle(DicomOrganizeException error);
+        _console = console ?? throw new ArgumentNullException(nameof(console));
     }
-
-    internal class StopErrorHandler : IErrorHandler
-    {
-        private readonly IConsole _console;
-
-        public StopErrorHandler(IConsole console)
-        {
-            _console = console ?? throw new ArgumentNullException(nameof(console));
-        }
         
-        public void Handle(DicomOrganizeException error)
-        {
-            _console.Error.WriteLine(error.ToString());
-            throw error;
-        }
+    public void Handle(DicomOrganizeException error)
+    {
+        _console.Error.WriteLine(error.ToString());
+        throw error;
     }
+}
 
-    internal class ContinueErrorHandler : IErrorHandler
+internal class ContinueErrorHandler : IErrorHandler
+{
+    private readonly IConsole _console;
+
+    public ContinueErrorHandler(IConsole console)
     {
-        private readonly IConsole _console;
-
-        public ContinueErrorHandler(IConsole console)
-        {
-            _console = console ?? throw new ArgumentNullException(nameof(console));
-        }
+        _console = console ?? throw new ArgumentNullException(nameof(console));
+    }
         
-        public void Handle(DicomOrganizeException error)
-        {
-            _console.Error.WriteLine(error.ToString());
-        }
+    public void Handle(DicomOrganizeException error)
+    {
+        _console.Error.WriteLine(error.ToString());
     }
 }

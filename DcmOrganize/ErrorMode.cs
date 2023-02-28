@@ -1,8 +1,7 @@
-﻿namespace DcmOrganize
+﻿namespace DcmOrganize;
+
+public enum ErrorMode
 {
-    public enum ErrorMode
-    {
-        Stop,
-        Continue
-    }
+    Stop,
+    Continue
 }

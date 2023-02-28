@@ -1,8 +1,7 @@
-﻿namespace DcmOrganize
+﻿namespace DcmOrganize;
+
+public enum Action
 {
-    public enum Action
-    {
-        Move,
-        Copy
-    }
+    Move,
+    Copy
 }

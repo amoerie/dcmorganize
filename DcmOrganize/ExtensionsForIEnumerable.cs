@@ -1,18 +1,17 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace DcmOrganize
+namespace DcmOrganize;
+
+internal static class ExtensionsForIEnumerable
 {
-    internal static class ExtensionsForIEnumerable
+    public static async IAsyncEnumerable<T> AsAsyncEnumerable<T>(this IEnumerable<T> enumerable)
     {
-        public static async IAsyncEnumerable<T> AsAsyncEnumerable<T>(this IEnumerable<T> enumerable)
+        foreach (var item in enumerable)
         {
-            foreach (var item in enumerable)
-            {
-                await Task.Yield();
+            await Task.Yield();
                 
-                yield return item;
-            }
+            yield return item;
         }
     }
 }
