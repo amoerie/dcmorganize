@@ -10,7 +10,6 @@ ProjectSection(SolutionItems) = preProject
 	publish.ps1 = publish.ps1
 	README.MD = README.MD
 	global.json = global.json
-	.github\workflows\publish.yml = .github\workflows\publish.yml
 EndProjectSection
 EndProject
 Global
