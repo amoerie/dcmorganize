@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="fo-dicom" Version="5.1.1" />
-    <PackageReference Include="KeyedSemaphores" Version="4.1.0" />
+    <PackageReference Include="KeyedSemaphores" Version="5.0.0" />
     <PackageReference Include="Polly" Version="7.2.3" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageReference Include="System.Threading.Channels" Version="7.0.0" />
