@@ -36,30 +36,38 @@ internal class DicomOrganizer : IDicomOrganizer
 
     public async Task OrganizeAsync(DicomOrganizerOptions options, CancellationToken cancellationToken)
     {
-        var parallelism = options.Parallelism;
-            
-        if (!options.Directory.Exists)
+        try
         {
-            throw new DicomOrganizeException($"Target directory does not exist: {options.Directory.FullName}");
-        }
+            var parallelism = options.Parallelism;
 
-        var filesChannel = Channel.CreateUnbounded<FileInfo>(new UnboundedChannelOptions
-        {
-            SingleWriter = true,
-            SingleReader = false
-        });
+            if (!options.Directory.Exists)
+            {
+                throw new DicomOrganizeException($"Target directory does not exist: {options.Directory.FullName}");
+            }
 
-        var tasks = new List<Task>
-        {
-            Task.Run(() => ProduceAsync(filesChannel.Writer, options, cancellationToken), cancellationToken)
-        };
-        for (var i = 0; i < parallelism; i++)
-        {
-            tasks.Add(
-                Task.Run(() => ConsumeAsync(filesChannel.Reader, options, cancellationToken), cancellationToken)
-            );
+            var filesChannel = Channel.CreateUnbounded<FileInfo>(new UnboundedChannelOptions
+            {
+                SingleWriter = true,
+                SingleReader = false
+            });
+
+            var tasks = new List<Task>
+            {
+                Task.Run(() => ProduceAsync(filesChannel.Writer, options, cancellationToken), cancellationToken)
+            };
+            for (var i = 0; i < parallelism; i++)
+            {
+                tasks.Add(
+                    Task.Run(() => ConsumeAsync(filesChannel.Reader, options, cancellationToken), cancellationToken)
+                );
+            }
+
+            await Task.WhenAll(tasks).WaitAsync(cancellationToken);
         }
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        catch (OperationCanceledException)
+        {
+            _logger.WriteLine("Cancelling...");
+        }
     }
 
     private async Task ProduceAsync(ChannelWriter<FileInfo> filesChannelWriter, DicomOrganizerOptions dicomOrganizerOptions, CancellationToken cancellationToken)
