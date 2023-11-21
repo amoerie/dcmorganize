@@ -48,6 +48,7 @@ internal class DicomOrganizer : IDicomOrganizer
             SingleWriter = true,
             SingleReader = false
         });
+
         var tasks = new List<Task>
         {
             Task.Run(() => ProduceAsync(filesChannel.Writer, options, cancellationToken), cancellationToken)
@@ -63,12 +64,21 @@ internal class DicomOrganizer : IDicomOrganizer
 
     private async Task ProduceAsync(ChannelWriter<FileInfo> filesChannelWriter, DicomOrganizerOptions dicomOrganizerOptions, CancellationToken cancellationToken)
     {
-        var files = dicomOrganizerOptions.Files?.AsAsyncEnumerable() ?? _filesFromConsoleInputReader.Read(cancellationToken);
-
-        await foreach (var file in files.WithCancellation(cancellationToken))
+        if (dicomOrganizerOptions.Files != null)
         {
-            await filesChannelWriter.WriteAsync(file, cancellationToken).ConfigureAwait(false);
+            foreach (var file in dicomOrganizerOptions.Files)
+            {
+                await filesChannelWriter.WriteAsync(file, cancellationToken).ConfigureAwait(false);
+            }
         }
+        else
+        {
+            await foreach (var file in _filesFromConsoleInputReader.Read(cancellationToken))
+            {
+                await filesChannelWriter.WriteAsync(file, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        filesChannelWriter.Complete();
     }
         
     private async Task ConsumeAsync(ChannelReader<FileInfo> filesChannelReader, DicomOrganizerOptions options, CancellationToken cancellationToken)
